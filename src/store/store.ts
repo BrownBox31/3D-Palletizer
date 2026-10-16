@@ -1,6 +1,7 @@
 // store.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { DEMO_SEED, shouldSeedDemoData } from './demoSeed';
 
 // ----- Types ----- //
 export type WeightUnit = 'lb' | 'kg';
@@ -162,6 +163,10 @@ interface AppStore {
 
   // Migration helper you can call once on app init to normalize older persisted pallets
   migratePalletConfigsToUnits?: () => void;
+
+  /** Load demo pallets / SKUs / layer / build into localStorage (for browser demos) */
+  seedDemoData: (force?: boolean) => void;
+  clearAllLibraryData: () => void;
 }
 
 // ----- Helpers ----- //
@@ -184,6 +189,7 @@ const deepCloneLayers = (layers: Layer[]): Layer[] =>
 export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
+      // Start empty; demo seed runs after rehydrate if still empty (see onRehydrateStorage)
       palletConfigs: [],
       boxConfigs: [],
       activeLayout: null,
@@ -191,6 +197,40 @@ export const useAppStore = create<AppStore>()(
       workingLayers: [{ id: 1, name: 'Layer 1', items: [] }],
       currentEditingLayoutId: null,
       savedPalletBuilds: [],
+
+      seedDemoData: (force = false) =>
+        set((state) => {
+          if (!force && !shouldSeedDemoData(state)) return state;
+          return {
+            palletConfigs: DEMO_SEED.palletConfigs.map((p) => ({ ...p })),
+            boxConfigs: DEMO_SEED.boxConfigs.map((b) => ({ ...b })),
+            savedLayouts: DEMO_SEED.savedLayouts.map((l) => ({
+              ...l,
+              layers: l.layers.map((layer) => ({
+                ...layer,
+                items: layer.items.map((it) => ({ ...it })),
+              })),
+            })),
+            savedPalletBuilds: DEMO_SEED.savedPalletBuilds.map((b) => ({
+              ...b,
+              placedLayers: b.placedLayers.map((pl) => ({
+                ...pl,
+                items: pl.items.map((it) => ({ ...it })),
+              })),
+            })),
+          };
+        }),
+
+      clearAllLibraryData: () =>
+        set({
+          palletConfigs: [],
+          boxConfigs: [],
+          savedLayouts: [],
+          savedPalletBuilds: [],
+          activeLayout: null,
+          workingLayers: [{ id: 1, name: 'Layer 1', items: [] }],
+          currentEditingLayoutId: null,
+        }),
 
       addPalletConfig: (pallet) =>
         set((state) => {
@@ -375,6 +415,12 @@ export const useAppStore = create<AppStore>()(
     {
       name: 'palletizer-store',
       storage: createJSONStorage((): Storage => localStorage),
+      onRehydrateStorage: () => (state) => {
+        // After localStorage loads: if library is empty, inject demo data once
+        if (state && shouldSeedDemoData(state)) {
+          state.seedDemoData(true);
+        }
+      },
     }
   )
 );

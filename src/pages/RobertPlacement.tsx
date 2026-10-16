@@ -512,12 +512,11 @@ const RobotPlacement: React.FC = () => {
   return (
     <Box
       sx={{
-        height: '100vh',
-        overscrollBehavior: 'none',
+        minHeight: '100%',
         background: brand.pageBg,
-        width: '100vw',
+        width: '100%',
         overflowX: 'hidden',
-        paddingTop: "2vh"
+        py: 2,
       }}
     >
       <Container

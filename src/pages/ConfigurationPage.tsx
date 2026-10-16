@@ -32,6 +32,7 @@ import ScaleIcon from '@mui/icons-material/Scale';
 import StraightenIcon from '@mui/icons-material/Straighten';
 import HeightIcon from '@mui/icons-material/Height';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
+import { brand } from '../ui/brand';
 
 interface NewPalletState {
   name: string;
@@ -48,19 +49,6 @@ interface NewBoxState {
   height: number;
   weight: number;
 }
-
-// Brand palette
-const brand = {
-  primaryG: 'linear-gradient(135deg, #6366F1 0%, #7C3AED 100%)',
-  successG: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-  cardBg: alpha('#FFFFFF', 0.92),
-  cardBorder: alpha('#E2E8F0', 0.85),
-  softBg: 'linear-gradient(135deg, #F6F8FB 0%, #EDEFF6 100%)',
-  pageBg: 'linear-gradient(135deg, #F5F7FA 0%, #C3CFE2 100%)',
-  primary: '#6366F1',
-  success: '#10B981',
-  danger: '#EF4444',
-};
 
 const ConfigurationPage: React.FC = () => {
   const {

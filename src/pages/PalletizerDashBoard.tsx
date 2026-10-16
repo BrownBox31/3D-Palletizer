@@ -1,272 +1,394 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Typography,
   Button,
   Box,
-  Container,
-  Avatar,
-  Paper,
-  Card,
-  CardContent,
-  useMediaQuery,
+  LinearProgress,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import Grid from "@mui/material/Grid"; 
 import { useNavigate } from "react-router-dom";
 import {
   Inventory2,
   AllInbox,
   Layers,
   PrecisionManufacturing,
-  Dashboard as DashboardIcon,
-  PlayArrow,
+  ArrowForward,
+  AccountTree,
+  PlayCircle,
 } from "@mui/icons-material";
+import { brand } from "../ui/brand";
+import { useAppStore } from "../store/store";
+import { WORKFLOW_STEPS } from "../ui/workflow";
 
-const brand = {
-  headerGrad: "linear-gradient(180deg, #173E9E 0%, #1E4ED8 100%)",
-  pageBg: "linear-gradient(135deg, #F6F8FB 0%, #EDF2F7 100%)",
-  cardBorder: "#E6EEF5",
-  primaryBlue: "#1E4ED8",
-  deepBlue: "#173E9E",
-  emerald: "#10B981",
-  violet: "#7C3AED",
-  amber: "#F59E0B",
-};
-
-type Tile = {
+type Module = {
+  step: string;
   title: string;
   description: string;
-  icon: typeof Inventory2;
+  meta: string;
   to: string;
-  color: string;
-  gradient: string;
+  icon: typeof Inventory2;
+  accent: string;
+  ready: boolean;
 };
 
 const PalletizerDashboard: React.FC = () => {
   const navigate = useNavigate();
 
-  const tiles: Tile[] = [
+  const palletCount = useAppStore((s) => s.palletConfigs.length);
+  const productCount = useAppStore((s) => s.boxConfigs.length);
+  const layerCount = useAppStore((s) => s.savedLayouts.length);
+  const buildCount = useAppStore((s) => s.savedPalletBuilds.length);
+  const seedDemoData = useAppStore((s) => s.seedDemoData);
+
+  const completedSteps = useMemo(() => {
+    let n = 0;
+    if (palletCount > 0) n += 1;
+    if (productCount > 0) n += 1;
+    if (layerCount > 0) n += 1;
+    if (buildCount > 0) n += 1;
+    if (buildCount > 0) n += 1;
+    return n;
+  }, [palletCount, productCount, layerCount, buildCount]);
+
+  const progressPct = Math.round((completedSteps / 5) * 100);
+
+  const nextStep = useMemo(() => {
+    if (palletCount === 0) return { to: "/pallet", label: "Define first pallet" };
+    if (productCount === 0) return { to: "/item", label: "Add a product SKU" };
+    if (layerCount === 0) return { to: "/layout", label: "Build a layer pattern" };
+    if (buildCount === 0) return { to: "/build-composer", label: "Compose a pallet build" };
+    return { to: "/run", label: "Open Operator Run" };
+  }, [palletCount, productCount, layerCount, buildCount]);
+
+  const modules: Module[] = [
     {
+      step: "01",
       title: "Pallet Config",
-      description: "Define pallet specs & weight limits.",
-      icon: Inventory2,
+      description: "Pallet size & max load",
+      meta: `${palletCount}`,
       to: "/pallet",
-      color: brand.primaryBlue,
-      gradient: "linear-gradient(135deg, #2A5BFF 0%, #1E4ED8 100%)",
+      icon: Inventory2,
+      accent: brand.primary,
+      ready: palletCount > 0,
     },
     {
+      step: "02",
       title: "Product Config",
-      description: "Create product types and labels.",
-      icon: AllInbox,
+      description: "SKU dims & labels",
+      meta: `${productCount}`,
       to: "/item",
-      color: brand.emerald,
-      gradient: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+      icon: AllInbox,
+      accent: brand.emerald,
+      ready: productCount > 0,
     },
     {
+      step: "03",
       title: "Layer Builder",
-      description: "Create and save layer layouts.",
-      icon: Layers,
+      description: "3D / 2D patterns",
+      meta: `${layerCount}`,
       to: "/layout",
-      color: brand.violet,
-      gradient: "linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)",
-    },
-    {
-      title: "Pallet Build Composer",
-      description: "Stack layers into a complete pallet.",
       icon: Layers,
-      to: "/build-composer",
-      color: brand.deepBlue,
-      gradient: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
+      accent: brand.deepBlue,
+      ready: layerCount > 0,
     },
     {
+      step: "04",
+      title: "Build Composer",
+      description: "Stack full builds",
+      meta: `${buildCount}`,
+      to: "/build-composer",
+      icon: AccountTree,
+      accent: brand.primaryBlue,
+      ready: buildCount > 0,
+    },
+    {
+      step: "05",
       title: "Robot Placement",
-      description: "Assign Left / Right / Front.",
-      icon: PrecisionManufacturing,
+      description: "Left / Front / Right",
+      meta: "Cell",
       to: "/robot-placement",
-      color: brand.amber,
-      gradient: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
+      icon: PrecisionManufacturing,
+      accent: brand.amber,
+      ready: buildCount > 0,
+    },
+    {
+      step: "06",
+      title: "Operator Run",
+      description: "Start / stop recipe",
+      meta: buildCount > 0 ? "Ready" : "—",
+      to: "/run",
+      icon: PlayCircle,
+      accent: brand.emerald,
+      ready: buildCount > 0,
     },
   ];
 
-   const lockScrollForLarge = useMediaQuery('(min-width:768px)');
-
   return (
     <Box
-    sx={{
-      height: '100vh',
-      overflow: lockScrollForLarge ? 'hidden' : 'auto',
-      overscrollBehavior: 'none',
-      background: brand.pageBg,
-      width: '100vw',  
-      overflowX: 'hidden', 
-    }}
-  >
-      <Container maxWidth="xl">
-        {/* Header */}
-        <Box sx={{ textAlign: "center", mb: 5 }}>
-          <Avatar
-            sx={{
-              width: 80,
-              height: 80,
-              mx: "auto",
-              mb: 2,
-              background: brand.headerGrad,
-              boxShadow: "0 8px 32px rgba(30,78,216,0.35)",
-            }}
-          >
-            <DashboardIcon sx={{ fontSize: 38 }} />
-          </Avatar>
-
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 800,
-              background: "linear-gradient(135deg, #173E9E 0%, #1E4ED8 100%)",
-              backgroundClip: "text",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              mb: 0.5,
-            }}
-          >
-            Palletizer Dashboard
+      sx={{
+        height: "100%",
+        maxHeight: "100%",
+        minHeight: 0,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        gap: 1,
+        px: { xs: 1.25, md: 2 },
+        py: 1.25,
+        background: `
+          radial-gradient(700px 280px at 10% 0%, ${alpha(brand.primary, 0.12)}, transparent 55%),
+          linear-gradient(180deg, #EEF2F7 0%, #E4EAF2 100%)
+        `,
+      }}
+    >
+      {/* Compact hero */}
+      <Box
+        sx={{
+          flexShrink: 0,
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: 2.5,
+          border: `1px solid ${alpha(brand.navy, 0.12)}`,
+          background: `linear-gradient(115deg, ${brand.navy} 0%, ${brand.deepBlue} 50%, #1A4BB8 100%)`,
+          color: "#fff",
+          px: { xs: 2, md: 3 },
+          py: { xs: 1.5, md: 1.75 },
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1fr auto" },
+          gap: 1.5,
+          alignItems: "center",
+        }}
+      >
+        <Box>
+          <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: alpha("#fff", 0.6), mb: 0.35 }}>
+            StackIt workspace
           </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Configure, compose, and place pallets with a guided flow.
+          <Typography sx={{ fontWeight: 800, fontSize: { xs: "1.25rem", md: "1.55rem" }, letterSpacing: "-0.03em", lineHeight: 1.15, mb: 0.35 }}>
+            Pattern. Build. Place.
+          </Typography>
+          <Typography sx={{ color: alpha("#fff", 0.68), fontSize: 13, display: { xs: "none", sm: "block" } }}>
+            Configure SKUs, design layers, and stage builds for the robotic cell.
           </Typography>
         </Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1, alignItems: { xs: "stretch", md: "flex-end" } }}>
+          <Button
+            variant="contained"
+            endIcon={<ArrowForward />}
+            onClick={() => navigate(nextStep.to)}
+            sx={{
+              bgcolor: "#fff",
+              color: brand.navy,
+              px: 2,
+              py: 1,
+              minHeight: 44,
+              fontWeight: 800,
+              boxShadow: "none",
+              whiteSpace: "nowrap",
+              "&:hover": { bgcolor: alpha("#fff", 0.92) },
+            }}
+          >
+            {nextStep.label}
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => {
+              if (window.confirm("Replace library with demo data? (pallets, SKUs, layer, build)")) {
+                seedDemoData(true);
+              }
+            }}
+            sx={{
+              color: alpha("#fff", 0.9),
+              borderColor: alpha("#fff", 0.45),
+              fontWeight: 700,
+              minHeight: 36,
+              "&:hover": { borderColor: "#fff", bgcolor: alpha("#fff", 0.1) },
+            }}
+          >
+            Load demo data
+          </Button>
+        </Box>
+      </Box>
 
-        {/* Tiles — desktop: 4 cols, tablet: 2 cols, mobile: 1 col */}
-        <Grid container spacing={2} alignItems="stretch">
-          {tiles.map((t) => (
-            <Grid key={t.title} size={{ xs: 12, sm: 2.4, md: 2.3 }}>
-              <Card
-                elevation={0}
-                sx={{
-                  height: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  background: alpha("#ffffff", 0.92),
-                  backdropFilter: "blur(12px)",
-                  border: `1px solid ${brand.cardBorder}`,
-                  borderRadius: 2,
-                  transition: "all .25s ease",
-                  "&:hover": {
-                    transform: "translateY(-3px)",
-                    boxShadow: "0 10px 28px rgba(0,0,0,0.10)",
-                  },
-                }}
-              >
-                <CardContent
-                  sx={{ p: 2.25, display: "flex", flexDirection: "column", height: "100%" }}
-                >
-                  <Box sx={{ textAlign: "center", mb: 1.5 }}>
-                    <Avatar
-                      sx={{
-                        width: 46,
-                        height: 46,
-                        mx: "auto",
-                        mb: 1,
-                        background: t.gradient,
-                        boxShadow: "0 4px 14px rgba(0,0,0,0.10)",
-                      }}
-                    >
-                      <t.icon sx={{ fontSize: 22 }} />
-                    </Avatar>
-
-                    <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.5 }}>
-                      {t.title}
-                    </Typography>
-
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ display: "block", lineHeight: 1.3, px: 1 }}
-                    >
-                      {t.description}
-                    </Typography>
-                  </Box>
-
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    startIcon={<PlayArrow />}
-                    onClick={() => navigate(t.to)}
-                    sx={{
-                      mt: "auto",
-                      borderRadius: 2,
-                      py: 0.9,
-                      fontSize: "0.8rem",
-                      background: t.gradient,
-                      textTransform: "none",
-                      fontWeight: 700,
-                      "&:hover": {
-                        background: t.gradient,
-                        transform: "translateY(-1px)",
-                        boxShadow: `0 8px 22px ${alpha(t.color, 0.25)}`,
-                      },
-                    }}
-                  >
-                    Start
-                  </Button>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-
-        {/* Quick Guide */}
-        <Paper
-          elevation={0}
+      {/* Progress + metrics row */}
+      <Box
+        sx={{
+          flexShrink: 0,
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1.2fr 1fr" },
+          gap: 1.25,
+        }}
+      >
+        <Box
           sx={{
-            mt: 6,
-            p: { xs: 3, md: 4 },
-            background: alpha("#ffffff", 0.92),
+            p: 1.5,
+            borderRadius: 2,
             border: `1px solid ${brand.cardBorder}`,
-            borderRadius: 3,
-            textAlign: "center",
+            background: alpha("#fff", 0.92),
           }}
         >
-          <Typography variant="h6" fontWeight={800} sx={{ mb: 1 }}>
-            Quick Start Guide
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Follow these steps to go from configuration to robot placement.
-          </Typography>
+          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.75 }}>
+            <Typography sx={{ fontWeight: 800, fontSize: 13, color: brand.ink }}>Setup progress</Typography>
+            <Typography sx={{ fontWeight: 800, fontSize: 13, color: brand.primary }}>{progressPct}%</Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={progressPct}
+            sx={{
+              height: 6,
+              borderRadius: 99,
+              mb: 1,
+              bgcolor: alpha(brand.primary, 0.1),
+              "& .MuiLinearProgress-bar": { borderRadius: 99, background: brand.primaryG },
+            }}
+          />
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+            {WORKFLOW_STEPS.filter((s) => s.id !== "run").map((s, i) => {
+              const done =
+                (i === 0 && palletCount > 0) ||
+                (i === 1 && productCount > 0) ||
+                (i === 2 && layerCount > 0) ||
+                (i === 3 && buildCount > 0) ||
+                (i === 4 && buildCount > 0);
+              return (
+                <Box
+                  key={s.id}
+                  onClick={() => navigate(s.path)}
+                  sx={{
+                    px: 1,
+                    py: 0.35,
+                    borderRadius: 1,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    color: done ? brand.emerald : brand.muted,
+                    bgcolor: done ? alpha(brand.emerald, 0.1) : alpha(brand.ink, 0.04),
+                    border: `1px solid ${done ? alpha(brand.emerald, 0.25) : brand.border}`,
+                  }}
+                >
+                  {done ? "✓ " : `${s.index}. `}
+                  {s.short}
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
 
-          <Grid container spacing={3} sx={{ maxWidth: 880, mx: "auto" }}>
-            <Grid size={{ xs: 12, sm: 3, md: 2 }}>
-              <Step number="1" label="Pallet Config" caption="Set pallet specs" />
-            </Grid>
-           <Grid size={{ xs: 12, sm: 2, md: 2 }}>
-              <Step number="2" label="Product Config" caption="Set product specs" />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 2, md: 2 }}>
-              <Step number="3" label="Layer Builder" caption="Create & save layers" color="success" />
-            </Grid>
-           <Grid size={{ xs: 12, sm: 3, md: 3 }}>
-              <Step number="4" label="Build Composer" caption="Stack layers to pallet" color="secondary" />
-            </Grid>
-              <Grid size={{ xs: 12, sm: 2, md: 3 }}>
-              <Step number="5" label="Robot Placement" caption="Assign Left / Right / Front" color="warning" />
-            </Grid>
-          </Grid>
-        </Paper>
-      </Container>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 1,
+          }}
+        >
+          {[
+            { label: "Pallets", value: palletCount },
+            { label: "Products", value: productCount },
+            { label: "Layers", value: layerCount },
+            { label: "Builds", value: buildCount },
+          ].map((m) => (
+            <Box
+              key={m.label}
+              sx={{
+                px: 1.25,
+                py: 1.1,
+                borderRadius: 2,
+                border: `1px solid ${brand.cardBorder}`,
+                background: alpha("#fff", 0.92),
+                minWidth: 0,
+              }}
+            >
+              <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: brand.muted }}>
+                {m.label}
+              </Typography>
+              <Typography sx={{ fontWeight: 800, fontSize: { xs: "1.2rem", md: "1.45rem" }, color: brand.ink, lineHeight: 1.15 }}>
+                {m.value}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+
+      {/* Modules grid — fits remaining height */}
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" },
+          gridTemplateRows: { md: "1fr 1fr" },
+          gap: 1.25,
+        }}
+      >
+        {modules.map((m) => {
+          const Icon = m.icon;
+          return (
+            <Box
+              key={m.to}
+              onClick={() => navigate(m.to)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") navigate(m.to);
+              }}
+              sx={{
+                cursor: "pointer",
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                p: { xs: 1.5, md: 1.75 },
+                borderRadius: 2.5,
+                border: `1px solid ${brand.cardBorder}`,
+                background: alpha("#fff", 0.94),
+                transition: "border-color .15s ease, box-shadow .15s ease",
+                "&:hover": {
+                  boxShadow: brand.shadowSm,
+                  borderColor: alpha(m.accent, 0.4),
+                },
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 1.5,
+                    display: "grid",
+                    placeItems: "center",
+                    bgcolor: alpha(m.accent, 0.1),
+                    color: m.accent,
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon sx={{ fontSize: 22 }} />
+                </Box>
+                <Typography sx={{ fontSize: 11, fontWeight: 800, color: m.ready ? brand.emerald : brand.muted }}>
+                  {m.meta}
+                </Typography>
+              </Box>
+
+              <Box sx={{ mt: 1 }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 800, color: brand.muted, letterSpacing: "0.04em" }}>
+                  {m.step}
+                </Typography>
+                <Typography sx={{ fontWeight: 800, color: brand.ink, fontSize: "0.98rem", lineHeight: 1.2 }}>
+                  {m.title}
+                </Typography>
+                <Typography sx={{ color: brand.muted, fontSize: 12, mt: 0.25, display: { xs: "none", md: "block" } }}>
+                  {m.description}
+                </Typography>
+              </Box>
+
+              <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
+                <ArrowForward sx={{ fontSize: 18, color: brand.ink, opacity: 0.45 }} />
+              </Box>
+            </Box>
+          );
+        })}
+      </Box>
     </Box>
   );
 };
-
-const Step: React.FC<{
-  number: string;
-  label: string;
-  caption: string;
-  color?: "primary" | "secondary" | "success" | "warning" | "info" | "error";
-}> = ({ number, label, caption, color = "primary" }) => (
-  <Box sx={{ textAlign: "center" }}>
-    <Avatar sx={{ mx: "auto", mb: 1, bgcolor: `${color}.main` }}>{number}</Avatar>
-    <Typography variant="body2" fontWeight={700}>{label}</Typography>
-    <Typography variant="caption" color="text.secondary">{caption}</Typography>
-  </Box>
-);
 
 export default PalletizerDashboard;

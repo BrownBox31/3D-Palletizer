@@ -21,10 +21,11 @@ import { brand } from '../ui/brand';
 
 // 3D
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, ContactShadows, Environment, Box as DreiBox, useTexture, Billboard, Text as DreiText } from '@react-three/drei';
+import { OrbitControls, ContactShadows, Environment, Box as DreiBox, useTexture, Billboard, Text as DreiText, Bounds } from '@react-three/drei';
 import * as THREE from 'three';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import { useThree } from '@react-three/fiber';
 
 // ---------- Types ----------
 type NewPalletState = { name: string; width: number; depth: number; maxWeight: number; };
@@ -89,27 +90,73 @@ const DimensionLabels: React.FC<{ w: number; d: number; width: number; depth: nu
   );
 };
 
+/** Keep orbit target on the pallet center and stop over-zoom near-plane clipping */
+function PreviewCameraRig({ targetY }: { targetY: number }) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    camera.near = 0.01;
+    camera.far = 500;
+    camera.updateProjectionMatrix();
+  }, [camera]);
+
+  return (
+    <OrbitControls
+      makeDefault
+      enableDamping
+      dampingFactor={0.08}
+      target={[0, targetY, 0]}
+      // Allow closer zoom without near-plane clipping; keep some orbit freedom
+      minDistance={0.9}
+      maxDistance={14}
+      minPolarAngle={0.15}
+      maxPolarAngle={Math.PI / 2.05}
+      enablePan={false}
+    />
+  );
+}
+
 function PalletPreview3D({ width, depth }: { width: number; depth: number }) {
   const w = Math.max(width, 0);
   const d = Math.max(depth, 0);
   const h = PALLET_HEIGHT;
   const maxDim = Math.max(w, d, h) || 1;
+  // Keep model in a stable unit box so framing stays consistent
   const scale = 2 / maxDim;
 
-  const ws = w * scale, ds = d * scale, hs = h * scale;
+  const ws = w * scale;
+  const ds = d * scale;
+  const hs = h * scale;
+  const centerY = hs / 2;
 
+  // Absolute-fill canvas so WebGL uses the FULL preview box (no whitish CSS strip under a short canvas)
   return (
-    <Canvas camera={{ position: [3, 2, 3], fov: 50 }} style={{ width: '100%', height: '100%' }}>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[5, 6, 3]} intensity={0.7} castShadow />
-      <group position={[0, hs / 2, 0]}>
-        <WoodenPallet dims={{ width: ws, depth: ds, height: hs }} />
-      </group>
-      <DimensionLabels w={ws} d={ds} width={w} depth={d} />
-      <ContactShadows position={[0, 0, 0]} opacity={0.25} scale={8} blur={2.5} far={10} />
-      <Environment preset="city" />
-      <OrbitControls enableDamping dampingFactor={0.08} maxPolarAngle={Math.PI / 2.05} />
-    </Canvas>
+    <Box sx={{ position: 'relative', width: '100%', height: '100%', minHeight: 'inherit' }}>
+      <Canvas
+        camera={{ position: [3.2, 2.4, 3.2], fov: 40, near: 0.01, far: 500 }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}
+        gl={{ antialias: true, logarithmicDepthBuffer: true }}
+        onCreated={({ gl }) => {
+          gl.setClearColor('#eef2f7');
+        }}
+      >
+        <ambientLight intensity={0.75} />
+        <directionalLight position={[5, 8, 4]} intensity={0.85} />
+        <hemisphereLight args={['#ffffff', '#dbe4ef', 0.5]} />
+
+        <Bounds fit observe margin={1.45}>
+          <group position={[0, centerY, 0]}>
+            <WoodenPallet dims={{ width: ws, depth: ds, height: hs }} />
+            <DimensionLabels w={ws} d={ds} width={w} depth={d} />
+          </group>
+        </Bounds>
+
+        {/* Soft shadow only — no big ground mesh that overlays the zoomed pallet */}
+        <ContactShadows position={[0, 0.001, 0]} opacity={0.2} scale={8} blur={2.5} far={10} />
+        <Environment preset="warehouse" background={false} environmentIntensity={0.5} />
+        <PreviewCameraRig targetY={centerY} />
+      </Canvas>
+    </Box>
   );
 }
 
@@ -124,34 +171,9 @@ const PalletConfigurationPage: React.FC = () => {
 
   const theme = useTheme();
 
-  const lockScrollForLarge = useMediaQuery(theme.breakpoints.up('lg'));
   const isMd = useMediaQuery(theme.breakpoints.only('md'));
 
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const root = document.getElementById('root') || document.getElementById('__next') || undefined;
-
-    const prevHtmlOverflow = (html.style.overflow || '');
-    const prevBodyOverflow = (body.style.overflow || '');
-    const prevRootOverflow = root?.style.overflow;
-
-    if (lockScrollForLarge) {
-      html.style.overflow = 'hidden';
-      body.style.overflow = 'hidden';
-      if (root) root.style.overflow = 'hidden';
-    } else {
-      html.style.overflow = '';
-      body.style.overflow = '';
-      if (root) root.style.overflow = '';
-    }
-
-    return () => {
-      html.style.overflow = prevHtmlOverflow;
-      body.style.overflow = prevBodyOverflow;
-      if (root && prevRootOverflow !== undefined) root.style.overflow = prevRootOverflow!;
-    };
-  }, [lockScrollForLarge]);
+  // Scroll is handled by App <main> — do not lock html/body overflow
 
   const fullScreenDialog = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -316,22 +338,30 @@ const PalletConfigurationPage: React.FC = () => {
 
   return (
     <Box sx={{
-      height: '100dvh',
-      minHeight: '100svh',
-      overflow: lockScrollForLarge ? 'hidden' : 'auto',
-      overscrollBehavior: 'none',
+      height: '100%',
+      minHeight: 0,
       background: brand.pageBg,
-      width: '100vw',
-      overflowX: 'hidden',
+      width: '100%',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
     }}>
       <Container
         maxWidth={false}
         disableGutters
-        sx={{ height: '100%', px: { xs: 2, md: 3, xl: 4 }, py: { xs: 2, md: 3 } }}
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          px: { xs: 1.5, md: 2 },
+          py: 1.25,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
       >
-        <Grid container spacing={3} alignItems="stretch" sx={{ height: '100%' }}>
+        <Grid container spacing={1.5} alignItems="stretch" sx={{ flex: 1, minHeight: 0, height: '100%' }}>
           {/* Left: Form */}
-          <Grid size={{ xs: 12, lg: 7 }} sx={{ height: '100%' }}>
+          <Grid size={{ xs: 12, lg: 7 }} sx={{ height: '100%', minHeight: 0, overflow: 'auto' }}>
             <Card
               elevation={0}
               sx={{
@@ -582,11 +612,12 @@ const PalletConfigurationPage: React.FC = () => {
                       <Grid size={{ xs: 12, md: 5 }}>
                         <Box
                           sx={{
+                            position: 'relative',
                             height: 360,
                             borderRadius: 2,
                             overflow: 'hidden',
                             border: `1px solid ${brand.cardBorder}`,
-                            background: alpha('#fff', 0.8)
+                            background: '#eef2f7',
                           }}
                         >
                           <PalletPreview3D width={previewWidthIn} depth={previewDepthIn} />
@@ -955,14 +986,26 @@ const PalletConfigurationPage: React.FC = () => {
                 title={<Typography variant="h6" fontWeight={700}>3D Preview</Typography>}
                 subheader={<Typography variant="body2">Preview updates as you type</Typography>}
               />
-              <CardContent sx={{ pt: 0, flex: 1, minHeight: 320 }}>
+              <CardContent
+                sx={{
+                  pt: 0,
+                  flex: 1,
+                  minHeight: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1.5,
+                }}
+              >
                 <Box
                   sx={{
-                    height: '100%',
+                    position: 'relative',
+                    flex: 1,
+                    height: 360,
                     minHeight: 360,
                     borderRadius: 2,
                     overflow: 'hidden',
-                    border: `1px solid ${brand.cardBorder}`
+                    border: `1px solid ${brand.cardBorder}`,
+                    background: '#eef2f7',
                   }}
                 >
                   <PalletPreview3D width={previewWidthIn} depth={previewDepthIn} />

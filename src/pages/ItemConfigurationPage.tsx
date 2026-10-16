@@ -195,12 +195,9 @@ const BoxPreview = ({ width, depth, height, labelSides, template }: any) => {
 const ItemConfigurationPage: React.FC = () => {
   const { boxConfigs, addBoxConfig, removeBoxConfig, updateBoxConfig } = useAppStore();
   const theme = useTheme();
-  const lockScrollForLarge = useMediaQuery('(min-width:768px)');
   const fullScreenDialog = useMediaQuery(theme.breakpoints.down('sm'));
 
-  useEffect(() => {
-    document.documentElement.style.overflow = lockScrollForLarge ? 'hidden' : '';
-  }, [lockScrollForLarge]);
+  // Scroll is handled by App <main> — do not lock html/body overflow
 
   const [newBox, setNewBox] = useState<NewBoxState>({
     name: '', width: 8, depth: 10, height: 5, weight: 25, labelTemplate: 'barcode-small', labelSides: [],
@@ -360,13 +357,13 @@ const ItemConfigurationPage: React.FC = () => {
   return (
     <Box
       sx={{
-        height: '100vh',
-        overflow: lockScrollForLarge ? 'hidden' : 'auto',
-        overscrollBehavior: 'none',
+        height: '100%',
+        minHeight: 0,
         background: brand.pageBg,
-        width: '100vw',
-        overflowX: 'hidden',
-        paddingTop: '2vh'
+        width: '100%',
+        overflow: 'auto',
+        py: 1.25,
+        px: { xs: 1, md: 0 },
       }}
     >
       <Container maxWidth="xl">

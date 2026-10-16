@@ -14,7 +14,6 @@ import { OrbitControls, Box as DreiBox, Text, ContactShadows, Environment, Edges
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -59,18 +58,22 @@ import {
   FormControlLabel,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
+import ViewInArIcon from '@mui/icons-material/ViewInAr';
+import MapIcon from '@mui/icons-material/Map';
+import { brand } from '../ui/brand';
+import EmptyState from '../components/EmptyState';
 
 // ---------- Theme helpers ----------
 const COLORS = {
-  deepBlue: '#1e3a8a',
-  slateDark: '#334155',
+  deepBlue: brand.deepBlue,
+  slateDark: brand.ink,
   slateMid: '#475569',
-  slate: '#64748b',
-  bgLight: '#f1f5f9',
-  cardBg: '#f8fafc',
+  slate: brand.muted,
+  bgLight: brand.soft,
+  cardBg: brand.surfaceAlt,
 };
 const gradient = (a: string, b: string) => `linear-gradient(135deg, ${a} 0%, ${b} 100%)`;
-const softGradient = gradient(COLORS.slate, COLORS.deepBlue);
+const softGradient = brand.primaryG;
 
 // ---------- Types / helpers ----------
 type RotDeg = { rotationXDeg: number; rotationYDeg: number; rotationZDeg: number; };
@@ -441,22 +444,53 @@ const WoodenPallet: React.FC<{ dims: PalletConfig }> = ({ dims }) => {
   );
 };
 
-const Scene: React.FC<any> = ({
-  dimensions, boxes, selectedBoxId, setSelectedBoxId, onUpdateBox, transformMode, previewBox, isValidPosition
-}) => {
+const ViewCameraRig: React.FC<{ viewMode: '3d' | '2d'; dimensions: any }> = ({ viewMode, dimensions }) => {
+  const { camera, size } = useThree();
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
-  const woodTex = useTexture('/wood_texture.jpg');
 
   useEffect(() => {
-    if (woodTex) {
-      woodTex.wrapS = woodTex.wrapT = THREE.RepeatWrapping;
-      woodTex.repeat.set(Math.max(1, Math.round(dimensions.width / 12)), Math.max(1, Math.round(dimensions.depth / 12)));
-      woodTex.anisotropy = 8;
+    const w = Math.max(dimensions?.width ?? 48, 20);
+    const d = Math.max(dimensions?.depth ?? 40, 20);
+    const span = Math.max(w, d);
+
+    if (viewMode === '2d') {
+      camera.position.set(0, span * 1.65, 0.001);
+      camera.up.set(0, 0, -1);
+      camera.lookAt(0, 0, 0);
+      camera.near = 0.1;
+      camera.far = 500;
+      if ('fov' in camera) (camera as THREE.PerspectiveCamera).fov = 50;
+      camera.updateProjectionMatrix();
+      if (controlsRef.current) {
+        controlsRef.current.target.set(0, 0, 0);
+        controlsRef.current.update();
+      }
+    } else {
+      camera.position.set(span * 0.9, span * 0.75, span * 0.85);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+      camera.updateProjectionMatrix();
+      if (controlsRef.current) {
+        controlsRef.current.target.set(0, 0, 0);
+        controlsRef.current.update();
+      }
     }
-  }, [woodTex, dimensions.width, dimensions.depth]);
+  }, [viewMode, dimensions?.width, dimensions?.depth, camera, size.width, size.height]);
+
+  // expose controls via parent Scene — this component only adjusts camera
+  void controlsRef;
+  return null;
+};
+
+const Scene: React.FC<any> = ({
+  dimensions, boxes, selectedBoxId, setSelectedBoxId, onUpdateBox, transformMode, previewBox, isValidPosition, viewMode = '3d',
+}) => {
+  const gridSize = 0.5;
+  const controlsRef = useRef<OrbitControlsImpl>(null!);
 
   return (
     <>
+      <ViewCameraRig viewMode={viewMode} dimensions={dimensions} />
       <ambientLight intensity={0.5} color="#ffffff" />
       <directionalLight position={[15, 25, 10]} intensity={0.25} castShadow />
       <spotLight position={[-20, 40, -20]} angle={0.3} penumbra={0.5} intensity={0.25} castShadow color="#ffdcb6" />
@@ -487,13 +521,23 @@ const Scene: React.FC<any> = ({
         />
       ))}
 
-      <OrbitControls ref={controlsRef} enableDamping dampingFactor={0.05} autoRotate={false} minDistance={5} maxDistance={100} />
+      <OrbitControls
+        ref={controlsRef}
+        enableDamping
+        dampingFactor={0.05}
+        autoRotate={false}
+        minDistance={5}
+        maxDistance={160}
+        enableRotate={viewMode === '3d'}
+        maxPolarAngle={viewMode === '2d' ? 0 : Math.PI}
+        minPolarAngle={viewMode === '2d' ? 0 : 0}
+      />
     </>
   );
 };
 
 const Palette3D: React.FC<any> = ({
-  dimensions, boxes, selectedBoxId, setSelectedBoxId, onUpdateBox, transformMode, previewBox, isValidPosition
+  dimensions, boxes, selectedBoxId, setSelectedBoxId, onUpdateBox, transformMode, previewBox, isValidPosition, viewMode = '3d',
 }) => (
   <div style={{ width: '100%', height: '100%', touchAction: 'none' }}>
     <Canvas
@@ -511,6 +555,7 @@ const Palette3D: React.FC<any> = ({
         transformMode={transformMode}
         previewBox={previewBox}
         isValidPosition={isValidPosition}
+        viewMode={viewMode}
       />
     </Canvas>
   </div>
@@ -564,6 +609,7 @@ const LayerCreationPage: React.FC = () => {
 
   // Start in drag; on touch we use custom pointer-drag
   const [placeMode, setPlaceMode] = useState<'drag' | 'tap'>('drag');
+  const [viewMode, setViewMode] = useState<'3d' | '2d'>('3d');
   const [pendingItem, setPendingItem] = useState<BoxConfig | null>(null);
 
   const [visibleItemIds, setVisibleItemIds] = useState<string[]>([]);
@@ -1027,102 +1073,88 @@ const LayerCreationPage: React.FC = () => {
   return (
     <MuiBox
       sx={{
-        height: '100vh',
-        overflowY: { xs: 'auto', md: 'hidden' },
-        overflowX: 'hidden',
-        overscrollBehavior: 'none',
-        background: gradient('#eef2f7', '#ffffff'),
-        width: '100vw',
-        paddingTop: "1vh"
+        height: '100%',
+        minHeight: 0,
+        overflow: 'hidden',
+        background: brand.pageBg,
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
-
-      <Container maxWidth="xl" sx={{ pt: 0, px: 0 }}>
-        <Card elevation={0} sx={{ borderRadius: 0, bgcolor: '#fff', boxShadow: 'none', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
-          <CardContent sx={{ py: 1, px: 3 }}>
-            {!selectedPallet ? (
-              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Typography variant="body2" color="text.secondary">No pallets found. Please add a pallet in configuration.</Typography>
-                <Button variant="contained" onClick={() => navigate('/dashboard')} startIcon={<ArrowBackIcon />}
-                  sx={{ background: softGradient, boxShadow: 2, '&:hover': { background: gradient(COLORS.deepBlue, COLORS.slateDark) } }}>
-                  Go to Dashboard
-                </Button>
-                <MuiBox sx={{ flexGrow: 1 }} />
-
-                <Button
-                  variant="outlined"
-                  startIcon={<ViewListIcon />}
-                  onClick={() => setLayoutsOpen(true)}
-                >
-                  View Saved Layers
-                </Button>
-
-              </Stack>
-            ) : (
-              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Chip label={`Pallet: ${selectedPallet.name}`} color="primary" variant="outlined" />
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="caption" sx={{ color: '#64748b' }}>Total Weight</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e3a8a' }}>
-                    {totalWeight} {palletWeightUnit} / {selectedPallet.maxWeight} {palletWeightUnit}
-                  </Typography>
-                  <MuiBox sx={{ width: 120, height: 6, bgcolor: '#e2e8f0', borderRadius: 8 }}>
-                    <MuiBox sx={{ width: `${weightUsedPct}%`, height: '100%', bgcolor: weightUsedPct >= 100 ? '#ef4444' : '#64748b', borderRadius: 8 }} />
-                  </MuiBox>
-                </Stack>
-
-                <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="caption" sx={{ color: '#64748b' }}>
-                    Layer {currentLayer ?? '-'}: {currentLayerItems} Products
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: '#64748b' }}>| {currentLayerWeight} {palletWeightUnit}</Typography>
-                  <Typography variant="caption" sx={{ color: '#64748b' }}>| Volume {currentLayerVolumePct.toFixed(1)}%</Typography>
-                </Stack>
-
-                {/* Right side spacer + View Saved Layouts button */}
-                <MuiBox sx={{ flexGrow: 1 }} />
-                <Button
-                  variant="outlined"
-                  startIcon={<ViewListIcon />}
-                  onClick={() => setLayoutsOpen(true)}
-                >
-                  View Saved Layers
-                </Button>
-
-              </Stack>
+      {/* Compact status strip — tablet fit */}
+      <MuiBox
+        sx={{
+          flexShrink: 0,
+          px: 1.5,
+          py: 0.75,
+          bgcolor: '#fff',
+          borderBottom: `1px solid ${brand.cardBorder}`,
+        }}
+      >
+        {!selectedPallet ? (
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+              {availablePallets.length === 0
+                ? 'No pallets yet — create one in Pallet Config.'
+                : 'Select a pallet in the left panel to begin.'}
+            </Typography>
+            {availablePallets.length === 0 && (
+              <Button size="small" variant="contained" onClick={() => navigate('/pallet')} sx={{ minHeight: 36 }}>
+                Pallet Config
+              </Button>
             )}
-          </CardContent>
-        </Card>
-      </Container>
+            <Button size="small" variant="outlined" startIcon={<ViewListIcon />} onClick={() => setLayoutsOpen(true)} sx={{ minHeight: 36 }}>
+              Saved
+            </Button>
+          </Stack>
+        ) : (
+          <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="nowrap" useFlexGap sx={{ overflowX: 'auto' }}>
+            <Chip size="small" label={selectedPallet.name} color="primary" variant="outlined" />
+            <Typography variant="caption" sx={{ color: brand.muted, whiteSpace: 'nowrap' }}>
+              {totalWeight}/{selectedPallet.maxWeight} {palletWeightUnit}
+            </Typography>
+            <MuiBox sx={{ width: 80, height: 5, bgcolor: '#e2e8f0', borderRadius: 8, flexShrink: 0 }}>
+              <MuiBox sx={{ width: `${weightUsedPct}%`, height: '100%', bgcolor: weightUsedPct >= 100 ? '#ef4444' : brand.primary, borderRadius: 8 }} />
+            </MuiBox>
+            <Typography variant="caption" sx={{ color: brand.muted, whiteSpace: 'nowrap' }}>
+              L{currentLayer ?? '-'} · {currentLayerItems} pcs · {currentLayerWeight} {palletWeightUnit}
+            </Typography>
+            <MuiBox sx={{ flexGrow: 1 }} />
+            <Button size="small" variant="outlined" startIcon={<ViewListIcon />} onClick={() => setLayoutsOpen(true)} sx={{ minHeight: 34 }}>
+              Saved Layers
+            </Button>
+          </Stack>
+        )}
+      </MuiBox>
 
-      <Container maxWidth="xl" sx={{ pb: 2, pt: 2 }}>
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 4, md: 3 }}>
+      <MuiBox sx={{ flex: 1, minHeight: 0, p: 1, display: 'flex', flexDirection: 'column' }}>
+        <Grid container spacing={1} sx={{ flex: 1, minHeight: 0, height: '100%' }}>
+          <Grid size={{ xs: 12, sm: 4, md: 3 }} sx={{ height: '100%', minHeight: 0, display: { xs: 'none', sm: 'flex' }, flexDirection: 'column' }}>
             <Card
-              elevation={3}
+              elevation={0}
               sx={{
-                borderRadius: 3,
+                borderRadius: 2,
                 bgcolor: '#fff',
-                boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
-                position: { sm: 'sticky', md: 'sticky' },
-                top: { sm: 12, md: 12 },
-                height: { xs: 'auto', sm: '45vh', md: '70vh' },
+                border: `1px solid ${brand.cardBorder}`,
+                height: '100%',
+                minHeight: 0,
                 display: 'flex',
-                flexDirection: 'column'
+                flexDirection: 'column',
+                overflow: 'hidden',
               }}
             >
-              <CardContent sx={{ pt: 2, flex: '0 0 auto' }}>
+              <CardContent sx={{ pt: 1.25, pb: 1, px: 1.5, flex: '0 0 auto' }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#334155' }}>
-                    Select Pallet & Products
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: brand.ink }}>
+                    Pallet & Products
                   </Typography>
                   <ToggleButtonGroup
                     size="small"
                     exclusive
                     value={placeMode}
                     onChange={(_, v) => v && setPlaceMode(v)}
+                    sx={{ '& .MuiToggleButton-root': { minHeight: 32, px: 1.25, fontSize: 11, fontWeight: 700 } }}
                   >
                     <ToggleButton value="drag">Drag</ToggleButton>
                     <ToggleButton value="tap">Tap</ToggleButton>
@@ -1185,6 +1217,16 @@ const LayerCreationPage: React.FC = () => {
 
                     </Select>
                   </FormControl>
+
+                  {availableItems.length === 0 && (
+                    <EmptyState
+                      compact
+                      title="No products yet"
+                      description="Add SKUs in Product Config so you can drag them onto the pallet."
+                      actionLabel="Add Product"
+                      onAction={() => navigate('/item')}
+                    />
+                  )}
 
                   <FormControl size="small" fullWidth>
                     <InputLabel id="item-multi-select-label">Products</InputLabel>
@@ -1325,19 +1367,19 @@ const LayerCreationPage: React.FC = () => {
             </Card>
           </Grid>
 
-          {/* 3D view (same height as sidebar) */}
-          <Grid size={{ xs: 12, sm: 8, md: 9 }}>
+          {/* 3D view — fills remaining tablet height */}
+          <Grid size={{ xs: 12, sm: 8, md: 9 }} sx={{ height: '100%', minHeight: 0 }}>
             <Card
               ref={viewCardRef}
               elevation={0}
               sx={{
-                height: { xs: '50vh', sm: '45vh', md: '70vh' },
+                height: '100%',
+                minHeight: 0,
                 position: 'relative',
-                borderRadius: 3,
+                borderRadius: 2,
                 bgcolor: '#fff',
-                border: `1px solid ${alpha(COLORS.slateDark, 0.08)}`,
-                boxShadow: '0 10px 22px rgba(15,23,42,0.08)',
-                overflow: 'hidden'
+                border: `1px solid ${brand.cardBorder}`,
+                overflow: 'hidden',
               }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
@@ -1372,99 +1414,117 @@ const LayerCreationPage: React.FC = () => {
                 transformMode={transformMode}
                 previewBox={previewBox}
                 isValidPosition={isValidPosition}
+                viewMode={viewMode}
               />
 
-              <MuiBox sx={{
-                position: 'absolute',
-                top: 14,
-                left: 14,
-                bgcolor: alpha(COLORS.slateDark, 0.85),
-                color: '#fff',
-                px: 1.25,
-                py: 0.75,
-                borderRadius: 2,
-                fontSize: 12.5,
-                boxShadow: 1,
-                pointerEvents: 'none',
-                maxWidth: { xs: 'calc(100% - 28px)', sm: '60%', md: '40%' },
-              }}>
-                💡 {isTouchDevice
-                  ? (placeMode === 'drag' ? 'Press-drag an product from the left, release over pallet' : 'Tap product, then tap pallet')
-                  : (placeMode === 'drag' ? 'Drag an product from the left panel into the view' : 'Tap product, then tap pallet')}
-              </MuiBox>
-
-              {/* Right-side controls over 3D */}
               <MuiBox
                 sx={{
                   position: 'absolute',
-                  top: { xs: 60, md: 14 },
-                  right: 14,
-                  left: { xs: 14, md: 'auto' },
+                  top: 10,
+                  left: 10,
+                  zIndex: 4,
+                  pointerEvents: 'none',
+                }}
+              >
+                <ToggleButtonGroup
+                  exclusive
+                  size="small"
+                  value={viewMode}
+                  onChange={(_, v) => v && setViewMode(v)}
+                  sx={{
+                    pointerEvents: 'auto',
+                    bgcolor: alpha('#0f172a', 0.72),
+                    borderRadius: 2,
+                    '& .MuiToggleButton-root': {
+                      color: '#fff',
+                      border: 'none',
+                      px: 1.25,
+                      minHeight: 34,
+                      fontWeight: 700,
+                      fontSize: 11,
+                      '&.Mui-selected': { bgcolor: brand.primary, color: '#fff' },
+                    },
+                  }}
+                >
+                  <ToggleButton value="3d"><ViewInArIcon sx={{ fontSize: 15, mr: 0.5 }} />3D</ToggleButton>
+                  <ToggleButton value="2d"><MapIcon sx={{ fontSize: 15, mr: 0.5 }} />2D</ToggleButton>
+                </ToggleButtonGroup>
+              </MuiBox>
+
+              {/* Right toolbar — reserved bottom gap so it never overlaps layer bar */}
+              <MuiBox
+                sx={{
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  bottom: 64,
+                  zIndex: 4,
                   display: 'flex',
-                  justifyContent: { xs: 'center', md: 'flex-end' },
+                  justifyContent: 'flex-end',
                   pointerEvents: 'none',
                 }}
               >
                 <Stack
-                  direction={{ xs: 'row', md: 'column' }}
-                  spacing={{ xs: 0.5, md: 1 }}
-                  alignItems="center"
-                  useFlexGap
+                  direction="column"
+                  spacing={0.5}
+                  alignItems="stretch"
                   sx={{
-                    p: { xs: 0.75, md: 1 },
+                    p: 0.75,
                     borderRadius: 2,
-                    bgcolor: alpha('#0f172a', 0.6),
-                    backdropFilter: 'blur(6px)',
+                    bgcolor: alpha('#0f172a', 0.72),
+                    backdropFilter: 'blur(8px)',
                     boxShadow: '0 6px 18px rgba(15,23,42,0.18)',
-                    flexWrap: 'wrap',
-                    maxWidth: { xs: '100%', md: 'auto' },
                     pointerEvents: 'auto',
+                    maxHeight: '100%',
+                    overflowY: 'auto',
+                    scrollbarWidth: 'thin',
                     '& .MuiButton-root': {
                       color: '#fff',
-                      fontSize: { xs: '0.7rem', md: '0.8125rem' },
-                      padding: { xs: '3px 8px', md: '4px 10px' },
-                      minWidth: { xs: 'auto', md: '100%' },
+                      fontSize: '0.72rem',
+                      padding: '6px 10px',
+                      minHeight: 34,
+                      minWidth: 108,
                       whiteSpace: 'nowrap',
+                      fontWeight: 700,
+                      justifyContent: 'flex-start',
                       '& .MuiButton-startIcon, & .MuiButton-endIcon': {
-                        marginLeft: { xs: '2px', md: '8px' },
-                        marginRight: { xs: '2px', md: '8px' },
-                        '& > *': {
-                          fontSize: { xs: '14px', md: '18px' }
-                        }
-                      }
+                        marginLeft: '2px',
+                        marginRight: '6px',
+                        '& > *': { fontSize: '15px' },
+                      },
                     },
                     '& .MuiButton-outlined': { borderColor: alpha('#ffffff', 0.4) },
                   }}
                 >
-                  <Button size="small" variant="outlined" startIcon={<StraightenIcon />} onClick={layFlatSelected} disabled={!selectedItem}>
+                  <Button variant="outlined" startIcon={<StraightenIcon />} onClick={layFlatSelected} disabled={!selectedItem}>
                     Flat
                   </Button>
-                  <Button size="small" variant="outlined" startIcon={<HeightIcon />} onClick={standWidthSelected} disabled={!selectedItem}>
-                    W
+                  <Button variant="outlined" startIcon={<HeightIcon />} onClick={standWidthSelected} disabled={!selectedItem}>
+                    Stand W
                   </Button>
-                  <Button size="small" variant="outlined" startIcon={<HeightIcon />} onClick={standDepthSelected} disabled={!selectedItem}>
-                    L
+                  <Button variant="outlined" startIcon={<HeightIcon />} onClick={standDepthSelected} disabled={!selectedItem}>
+                    Stand L
                   </Button>
 
-                  <Button size="small" variant="contained" startIcon={<RotateLeftIcon />} onClick={() => rotateYSelected(-90)} disabled={!selectedItem}
+                  <Button variant="contained" startIcon={<RotateLeftIcon />} onClick={() => rotateYSelected(-90)} disabled={!selectedItem}
                     sx={{ background: softGradient, '&:hover': { background: gradient(COLORS.deepBlue, COLORS.slateDark) } }}>
                     -90°
                   </Button>
-                  <Button size="small" variant="contained" endIcon={<RotateRightIcon />} onClick={() => rotateYSelected(+90)} disabled={!selectedItem}
+                  <Button variant="contained" endIcon={<RotateRightIcon />} onClick={() => rotateYSelected(+90)} disabled={!selectedItem}
                     sx={{ background: softGradient, '&:hover': { background: gradient(COLORS.deepBlue, COLORS.slateDark) } }}>
                     +90°
                   </Button>
 
-                  <Button size="small" variant="outlined" startIcon={<DeleteIcon />} onClick={removeSelectedItem} disabled={!selectedItem}>
-                    Del
+                  <Button variant="outlined" startIcon={<DeleteIcon />} onClick={removeSelectedItem} disabled={!selectedItem}>
+                    Delete
                   </Button>
-                  <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={addNewLayer}
+                  <Button variant="contained" startIcon={<AddIcon />} onClick={addNewLayer}
                     sx={{ background: softGradient, '&:hover': { background: gradient(COLORS.deepBlue, COLORS.slateDark) } }}>
-                    Layer
+                    New Layer
                   </Button>
-                  <Button size="small" variant="contained" startIcon={<SaveIcon />} onClick={saveCurrentLayout}
+                  <Button variant="contained" startIcon={<SaveIcon />} onClick={saveCurrentLayout}
                     sx={{ background: softGradient, boxShadow: 2, '&:hover': { background: gradient(COLORS.deepBlue, COLORS.slateDark) } }}>
-                    {editingId ? 'Save' : 'Save'}
+                    Save Layout
                   </Button>
                 </Stack>
               </MuiBox>
@@ -1474,15 +1534,15 @@ const LayerCreationPage: React.FC = () => {
                   {isValidPosition ? '✅ Valid Position' : '❌ Invalid (Collision/Bounds)'}
                 </MuiBox>
               )}
-              {/* Current Layers — bottom overlay inside 3D view */}
+              {/* Layer bar — stops before toolbar (right: 128) so no overlap */}
               {layers.length > 0 && (
                 <MuiBox
                   sx={{
                     position: 'absolute',
-                    left: 12,
-                    right: 12,
-                    bottom: 12,
-                    pointerEvents: 'none',    
+                    left: 10,
+                    right: 128,
+                    bottom: 10,
+                    pointerEvents: 'none',
                     zIndex: 3,
                   }}
                 >
@@ -1492,15 +1552,15 @@ const LayerCreationPage: React.FC = () => {
                     onWheel={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                     sx={{
-                      pointerEvents: 'auto',   // ...panel receives events
-                      p: 1.5,
+                      pointerEvents: 'auto',
+                      px: 1.25,
+                      py: 1,
                       borderRadius: 2,
-                      bgcolor: alpha('#0f172a', 0.6),
+                      bgcolor: alpha('#0f172a', 0.78),
                       color: '#fff',
-                      border: `1px solid ${alpha('#ffffff', 0.18)}`,
-                      backdropFilter: 'blur(6px)',
-                      boxShadow: '0 8px 24px rgba(15,23,42,0.28)',
-                      maxHeight: { xs: 140, md: 160 },
+                      border: `1px solid ${alpha('#ffffff', 0.16)}`,
+                      backdropFilter: 'blur(8px)',
+                      maxHeight: 52,
                       overflowY: 'auto',
                     }}
                   >
@@ -1615,7 +1675,7 @@ const LayerCreationPage: React.FC = () => {
 
           </Grid>
         </Grid>
-      </Container>
+      </MuiBox>
 
       {/* Create Layer Dialog */}
       <Dialog open={creatingLayerOpen} onClose={closeCreatingLayer} maxWidth="sm" fullWidth>

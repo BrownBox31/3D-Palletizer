@@ -272,7 +272,7 @@ const BoxPlacementByRobo: React.FC = () => {
   useEffect(() => { if (!selectedBuild) setPlaying(false); }, [selectedBuild]);
 
   return (
-    <Box sx={{ height: '100vh', overscrollBehavior: 'none', background: brand.pageBg, width: '100vw', overflowX: 'hidden', paddingTop: '2vh' }}>
+    <Box sx={{ minHeight: '100%', background: brand.pageBg, width: '100%', overflowX: 'hidden', py: 2 }}>
       <Container maxWidth={false} disableGutters sx={{ p: 0, m: 0 }}>
         <Grid container spacing={2} sx={{ m: 0 }}>
          <Grid size={{ xs: 12, sm: 4, md: 3 }}>

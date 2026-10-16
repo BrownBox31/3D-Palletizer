@@ -586,12 +586,10 @@ const PalletBuildComposer: React.FC = () => {
   return (
     <Box
       sx={{
-        height: '100vh',
-        overflow: lockScrollForLarge ? 'hidden' : 'auto',
-        overscrollBehavior: 'none',
+        minHeight: '100%',
         background: brand.pageBg,
-        width: '100vw',             
-        overflowX: 'hidden',         
+        width: '100%',
+        overflowX: 'hidden',
       }}
     >
       <Container
@@ -599,13 +597,8 @@ const PalletBuildComposer: React.FC = () => {
         sx={{
           py: 1.25,
           background: gradient(COLORS.pageBg, '#ffffff'),
-          minWidth: '100%',
-          // Scroll locking for ≥768px viewports to avoid layout shift/right padding
-          height: lockScrollForLarge ? '100vh' : 'auto',
-          overflow: lockScrollForLarge ? 'hidden' : 'auto',
-          overscrollBehavior: lockScrollForLarge ? 'none' : 'auto',
-          width: lockScrollForLarge ? '100vw' : 'auto',
-          overflowX: 'hidden'
+          width: '100%',
+          overflowX: 'hidden',
         }}
       >
         {palletConfigs.length === 0 && (
